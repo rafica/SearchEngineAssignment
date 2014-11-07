@@ -1,0 +1,65 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1265\cocoasubrtf210
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww20540\viewh10520\viewkind0
+\deftab720
+\pard\pardeftab720
+
+\f0\fs26 \cf0 \
+\'97\'97\'97before querying------\
+Construct inverted index \'a0like this\
+\{ word1: [doc1, doc2, doc2, doc3] , word2: [doc1, doc3] \}\
+\
+Construct wordCount like this\
+\{doc1 : no.of words , doc2: no.of.words .. \}\
+\
+Construct docIdName like this //useful for output\
+\{doc1 : name, doc2: name. \'85 \}\
+\
+\'97\'97\'97 after input query \'97\'97\
+Construct queryMap which has\
+\{ qword1 : count , qword2 : count \'85 \}\
+\
+Construct queryInvertedIndex \'a0which is almost like a copy of invertedIndex but only for the words in the query. one difference is value field is a map not a list\
+\{qword1 : \{doc1: 1, \'a0doc2: 2 , doc3: 3\}, qword2: \{doc1: 1, doc2:1\}\'85.\}\
+this is used to efficiently handle repetitions of the words in the query.\
+\
+// doing all this shit coz eg.if there are two repetitions in the query and just one word in the document, it should be considered\
+one match and not two\
+\
+Construct docWeights by the following algorithm\
+for each word in the queryMap,\
+	for 1 to queryMap.getcount(word):\
+		docMap = queryInvertedIndex.get(word)\
+		for\'a0docKey in docMap.keys():\
+			if docValue is 0:\
+				continue;\
+			subtract docValue by 1\'a0\
+			check if doc is present in docWeights.\'a0\
+			if present, add 1	\
+			else assign 1 for that doc\
+\
+now docWeights has number of matches for each document\
+\
+docWeights : \{doc1 : num.of.matches , doc2 : num.of.matches\'85.. \}\
+\
+modify value part of docWeights using the formula below. n is the value here\
+Nd is given by wordCount found initially.\
+Nq is size of query\
+/*			\
+boolean model and vector space model is not very efficient here since the document size is too small.\
+tf idf concepts are also not good here. they work well for large document size\
+the below formula is basically tf. but it also considers length of the document.\
+if the document is more close to the query, it gets a higher rank.\
+\
+weight of document = n * n / (Nd * Nq) \'a0(shit Nq is constant)!!!!! Is this necessary? confused\'a0\
+\'a0\
+where n is number of matches,\
+	\'a0Nd is number of words in document\
+\'a0 \'a0 \'a0 \'a0 \'a0Nq is number of words in query\
+\
+copies of word is considered like separate words\
+*/\
+\
+(not sure)if a word in the query is present more than one time, then it might perform badly\
+}
