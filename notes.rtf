@@ -8,7 +8,7 @@
 \f0\fs26 \cf0 \
 \'97\'97\'97before querying------\
 Construct inverted index \'a0like this\
-\{ word1: [doc1, doc2, doc2, doc3] , word2: [doc1, doc3] \}\
+\{ word1: \{doc1: count, doc2:count, doc3:count\} , word2: \{doc1:count, doc3:count \}\'85\}\
 \
 Construct wordCount like this\
 \{doc1 : no.of words , doc2: no.of.words .. \}\
@@ -20,7 +20,7 @@ Construct docIdName like this //useful for output\
 Construct queryMap which has\
 \{ qword1 : count , qword2 : count \'85 \}\
 \
-Construct queryInvertedIndex \'a0which is almost like a copy of invertedIndex but only for the words in the query. one difference is value field is a map not a list\
+Construct queryInvertedIndex \'a0which is a copy of invertedIndex but only for the words in the query.\
 \{qword1 : \{doc1: 1, \'a0doc2: 2 , doc3: 3\}, qword2: \{doc1: 1, doc2:1\}\'85.\}\
 this is used to efficiently handle repetitions of the words in the query.\
 \
@@ -52,7 +52,7 @@ tf idf concepts are also not good here. they work well for large document size\
 the below formula is basically tf. but it also considers length of the document.\
 if the document is more close to the query, it gets a higher rank.\
 \
-weight of document = n * n / (Nd * Nq) \'a0(shit Nq is constant)!!!!! Is this necessary? confused\'a0\
+weight of document = n * n / (Nd * Nq) \'a0(Nq is constant. used here for a normalized value)\
 \'a0\
 where n is number of matches,\
 	\'a0Nd is number of words in document\
@@ -61,5 +61,16 @@ where n is number of matches,\
 copies of word is considered like separate words\
 */\
 \
-(not sure)if a word in the query is present more than one time, then it might perform badly\
+\
+\
+\
+IDEA: vector space model with tf idf as weights ( won\'92t work since document length is negligible here)\
+IDEA: above formula . (doesn\'92t work properly in this case. (query is [word1, word2] , doc1:[word1], doc2:[word1, word2, word, word, word, word]\
+IDEA: cosine similarity (basically the same thing)\
+IDEA: just n  ( its tf). (doesn\'92t work properly in this case.  Doc1: word word word match match, Doc2: match match . both will be ranked equally\
+IDEA: just n. top k results with equal rank should be sorted based on length. <\'97 best results\
+\
+not doing stemming here. coz proper nouns\
+not removing stop words. \
+\
 }

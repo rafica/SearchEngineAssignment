@@ -1,7 +1,12 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,8 +21,8 @@ import java.util.Set;
 public class Searcher {
 
 	private String filePath;
-	private Map<String, List<String>> invertedIndex = new HashMap<String, List<String>>();
-	private Map<String, Integer> wordCount = new HashMap<String, Integer>();
+	private Map<String, Map<String, Integer>> invertedIndex = new HashMap<String, Map<String, Integer>>();
+	private Map<String, Integer> wordCount = new HashMap<String, Integer>(); //needed?
 	private Map<String, String> docIdName = new HashMap<String, String>();
 	
 	private void prompt() {
@@ -29,6 +34,10 @@ public class Searcher {
 			/*Lower case*/
 			String key = word.toLowerCase();
 			
+			//remove characters like !, . , ',', ?, "", '',
+			
+			//replace & with and
+			
 			newWords.add(key);
 		}
 		String[] wordArr = new String[newWords.size()];
@@ -39,62 +48,102 @@ public class Searcher {
 	
 	private void storeInIndex(String[] words, String document) {
 		words = textNormalization(words);
-		for(String word: words){
-			if(invertedIndex.containsKey(word)){
-				invertedIndex.get(word).add(document);
+		
+		// 1-gram and bigram added here
+		
+		for(int i=0;i<words.length; i++){
+			if(invertedIndex.containsKey(words[i])){
+				Map<String,Integer> m =	invertedIndex.get(words[i]);
+				if(m.containsKey(document)){
+					m.put(document, m.get(document)+1 );
+				}
+				else {
+					m.put(document, 1);
+				}
 			}
 			else {
-				List<String> docList = new ArrayList<String>();
-				docList.add(document);
-				invertedIndex.put(word, docList);
+				Map<String, Integer> docMap = new HashMap<String, Integer>();
+				docMap.put(document, 1);
+				invertedIndex.put(words[i], docMap);
 			}
-		}
+			if(i+1 < words.length){
+				String bigram = words[i] +" "+ words[i+1];
+				if(invertedIndex.containsKey(bigram)) {
+					Map<String,Integer> m =	invertedIndex.get(bigram);
+					if(m.containsKey(document)){
+						m.put(document, m.get(document)+1 );
+					}
+					else {
+						m.put(document, 1);
+					}
+				}
+				else {
+					Map<String, Integer> docMap = new HashMap<String, Integer>();
+					docMap.put(document, 1);
+					invertedIndex.put(bigram, docMap);
+				}
+			}
+			
+			
+		}	
 		wordCount.put(document, words.length);
 	}
+	
 	private void buildIndex() throws FileNotFoundException, IOException  {
 		BufferedReader br = new BufferedReader(new FileReader(filePath));
 		String line;
 		while((line = br.readLine()) != null) {
 			String[] lineArray = line.split("\t", -1);
-			//System.out.println(Arrays.toString(lineArray));
+			
 			if(lineArray.length > 1){
 				String[] musicalGroup = lineArray[0].split("\\s+");
-				//System.out.println(Arrays.toString(musicalGroup));
+			
 				storeInIndex(musicalGroup, lineArray[1]);
 				docIdName.put(lineArray[1], lineArray[0]);
 			}
 		}
 		
 		
-		/* writing the index to a file */
-//		Writer writer = null;
-//
-//		try {
-//		    writer = new BufferedWriter(new OutputStreamWriter(
-//		          new FileOutputStream("index.txt"), "utf-8"));
-//		    writer.write(Arrays.toString(invertedIndex.entrySet().toArray()));
-//		} catch (IOException ex) {
-//		  // report
-//		} finally {
-//		   try {writer.close();} catch (Exception ex) {}
-//		}
-		/* writing the index to a file */
+		writeIndexToFile();
+		
 		br.close();
 	}
 	
-	private void sortDocWeights(Map<String, Double> weights) {
-		Set<Entry<String, Double>> set = weights.entrySet();
-        List<Entry<String, Double>> list = new ArrayList<Entry<String, Double>>(set);
-        Collections.sort( list, new Comparator<Map.Entry<String, Double>>()
+	private void writeIndexToFile() {
+		Writer writer = null;
+
+		try {
+		    writer = new BufferedWriter(new OutputStreamWriter(
+		          new FileOutputStream("index.txt"), "utf-8"));
+		    writer.write(Arrays.toString(invertedIndex.entrySet().toArray()));
+		} catch (IOException ex) {
+		  // report
+		} finally {
+		   try {writer.close();} catch (Exception ex) {}
+		}
+	}
+	private List<Entry<String, Integer>> sortDocWeights(Map<String, Integer> weights) {
+		Set<Entry<String, Integer>> set = weights.entrySet();
+        List<Entry<String, Integer>> list = new ArrayList<Entry<String, Integer>>(set);
+        Collections.sort( list, new Comparator<Map.Entry<String, Integer>>()
         {
-            public int compare( Map.Entry<String, Double> o1, Map.Entry<String, Double> o2 )
+            public int compare( Map.Entry<String, Integer> o1, Map.Entry<String, Integer> o2 )
             {
                 return (o2.getValue()).compareTo( o1.getValue() );
             }
         } );
-        for(Map.Entry<String, Double> entry:list){
+        
+        //TODO comment out the following prints
+        int i =0;
+        for(Map.Entry<String, Integer> entry:list){
+        	i = i+1;
+        	if(i>10){
+        		break;
+        	}
             System.out.println(docIdName.get(entry.getKey())+" ==== "+entry.getValue());
         }
+        
+        return list;
 	}
 	
 	public Searcher(String filePath) throws FileNotFoundException, IOException {
@@ -102,19 +151,18 @@ public class Searcher {
 		buildIndex();		
 	}
 
-	public String search(String query) {
-	
+	public String search(String query) throws IOException {
+		
 		String[] queryWords = query.split("\\s+");
 		if(queryWords.length==0)
 			return "Empty query";
 		
 		//TODO text normalization
-		double Nq = queryWords.length;
-		
+		queryWords = textNormalization(queryWords);
 		Map<String, Integer> queryMap = new HashMap<String, Integer>();
-		Map<String, Double> docWeights = new HashMap<String, Double>();
-		//Map<String, Map<String, Integer>> queryInvertedIndex = new HashMap<String, Map<String, Integer>>();
+		Map<String, Integer> docWeights = new HashMap<String, Integer>();
 		
+		//Adding words and bigrams
 		for(int i=0; i< queryWords.length; i++) {
 			if(queryMap.containsKey(queryWords[i])) {
 				queryMap.put(queryWords[i], queryMap.get(queryWords[i])+1);
@@ -122,25 +170,23 @@ public class Searcher {
 			else {
 				queryMap.put(queryWords[i], 1);
 			}
+			if(i < queryWords.length-1){
+				String bigram = queryWords[i] + queryWords[i+1];
+				if(queryMap.containsKey(bigram)) {
+					queryMap.put(bigram, queryMap.get(bigram)+1);
+				}
+				else {
+					queryMap.put(bigram, 1);
+				}
+			}
 		}
-		
+		//1-gram and bi-gram
 		for(String word: queryMap.keySet()) {
 			if(!invertedIndex.containsKey(word))
 				continue;
-			List<String> docList = invertedIndex.get(word);
-			Map<String, Integer> docMap = new HashMap<String, Integer>();
+			Map<String, Integer> docMap = invertedIndex.get(word);
 			
-			for(String doc: docList) {
-				if(docMap.containsKey(doc)) {
-					docMap.put(doc, docMap.get(doc)+1);
-				}
-				else {
-					docMap.put(doc, 1);
-				}
-			}
-			//queryInvertedIndex.put(word, docMap); 
-			// ^^not needed. phew :D (i think)
-			int count = queryMap.get(word); //count is mostly 1 or 2 unless the user gives a query like this this this this this this this..
+			int count = queryMap.get(word); 
 			for(int j = 0; j < count; j++) {
 				for(String doc: docMap.keySet()) {
 					if(docMap.get(doc)==0)
@@ -150,48 +196,86 @@ public class Searcher {
 						docWeights.put(doc, docWeights.get(doc)+1);
 					}
 					else {
-						docWeights.put(doc, 1.0);
+						docWeights.put(doc, 1);
 					}		
 				}
 			}
 		}
-		for(String doc: docWeights.keySet()) {
-			double matches = docWeights.get(doc);
-			double Nd = wordCount.get(doc);
-			docWeights.put(doc, matches * matches / (Nq * Nd ) );
+		
+		if(docWeights.isEmpty())
+			return "No results found";
+	
+		List<Entry<String, Integer>> sorted = sortDocWeights(docWeights);  // TODO: use the same sorting function
+		List<List<Entry<String, Integer>>> topRanked = new ArrayList<List<Entry<String, Integer>>>();
+		Integer first = null;
+		
+		int i=0;
+		
+		Map<String, Integer> map = new HashMap<String, Integer>();
+		for(Map.Entry<String, Integer> entry:sorted){
+			if(i==0){
+				first = entry.getValue();
+				map.put(entry.getKey(), wordCount.get(entry.getKey()));
+				i=1;
+			}
+			else if(first.equals(entry.getValue()))
+				map.put(entry.getKey(), wordCount.get(entry.getKey()));
+			else {
+				topRanked.add(sortLength(map));
+				map = new HashMap<String, Integer>();
+				first = entry.getValue();
+				map.put(entry.getKey(), wordCount.get(entry.getKey()));
+			}
 		}
+		
+		topRanked.add(sortLength(map));
+		
+        System.out.println("(Q or q) to quit\n");
+        
+        int maxCount = 20; // can change
+        int count = 0;
+        BufferedReader console = new BufferedReader( new InputStreamReader(System.in));
+		String input;
+		for(List<Entry<String, Integer>> list: topRanked) {
+			for(Map.Entry<String, Integer> entry:list){
+				System.out.println("Did you mean "+ docIdName.get(entry.getKey()) + "  "+ entry.getKey() +" ? (Y or y)");
+				input = console.readLine();
 
-		// no of matches * no. of matches /(Nd * Nq)
-		
-		sortDocWeights(docWeights);
-		
-		
-		
-		//boolean model
-//		List<String> newQueryWords = new ArrayList<String>();
-//		Boolean flag = false;
-//		List<String> list1 = new ArrayList<String>();
-//		List<String> list2 = new ArrayList<String>();
-//		for(int i=0; i< queryWords.length; i++) {
-//			if(!invertedIndex.containsKey(queryWords[i]))
-//				continue;
-//			if(flag) {
-//				list2 = invertedIndex.get(queryWords[i]);
-//				list1.retainAll(list2);
-//			}
-//			else{
-//				flag = true;
-//				list1 = new ArrayList<String>(invertedIndex.get(queryWords[i]));
-//				newQueryWords.add(queryWords[i]);
-//			}
-//		}
-//		if(list1.isEmpty())
-//			return "No results";
-		
-		return "";
+				if(input.equals("y") || input.equals("Y")) {
+					return "ID: "+entry.getKey();
+				} 
+				else if(input.equals("q") || input.equals("Q")) {
+					return "";
+				}
+				else {
+					count++;
+					if(count>= maxCount)
+						return "No more results";
+					continue;
+				}
+			}
+		}
+ 	
+		return "No results found";  //check this
 	}
 
-	public static void main(String[] args) {
+	private List<Entry<String, Integer>> sortLength(Map<String, Integer> weights) {
+		Set<Entry<String, Integer>> set = weights.entrySet();
+		List<Entry<String, Integer>> list = new ArrayList<Entry<String, Integer>>(set);
+        Collections.sort( list, new Comparator<Map.Entry<String, Integer>>()
+        {
+            public int compare( Map.Entry<String, Integer> o1, Map.Entry<String, Integer> o2 )
+            {
+                return (o1.getValue()).compareTo( o2.getValue() );
+            }
+        } );
+
+        return list;
+	}
+	
+	public static void main(String[] args) throws IOException {
+		
+		//TODO: handle the exceptions 
 		Searcher searcher = null;
 		try {
 			searcher = new Searcher(args[0]);
