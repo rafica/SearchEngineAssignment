@@ -43,6 +43,38 @@ now docWeights has number of matches for each document\
 \
 docWeights : \{doc1 : num.of.matches , doc2 : num.of.matches\'85.. \}\
 \
+then docWeights sorted based on values;\
+ all the first ranked ones are sorted based on word count\
+ all the second ranked ones are sorted based on word count\
+\'85..\
+ till last\
+\
+top K results are displayed.\
+\
+The end.\
+\
+\
+Ideas thought of: (last one implemented)\
+\
+IDEA: vector space model with tf idf as weights ( won\'92t work since document length is negligible here)\
+IDEA: below formula . (doesn\'92t work properly in this case. (query is [word1, word2] , doc1:[word1], doc2:[word1, word2, word, word, word, word]\
+IDEA: cosine similarity (basically the same thing)\
+IDEA: just n  ( its tf). (doesn\'92t work properly in this case.  Doc1: word word word match match, Doc2: match match . both will be ranked equally\
+IDEA: just n. top k results with equal rank should be sorted based on length. <\'97 best results\
+\
+not doing stemming here. coz proper nouns\
+not removing stop words. \
+removing comma, \'93\'94 () [] \{\}\
+make ? , ! as separate word \'a0(coz there are some names with just ? ) assign less weights for the features with just character\
+		\
+		both with and without space for . \'91 -\'a0\
+\
+Test cases:\
+f u\
+Sylvesters Team\
+chara yuki\
+\
+\
 modify value part of docWeights using the formula below. n is the value here\
 Nd is given by wordCount found initially.\
 Nq is size of query\
@@ -64,13 +96,6 @@ copies of word is considered like separate words\
 \
 \
 \
-IDEA: vector space model with tf idf as weights ( won\'92t work since document length is negligible here)\
-IDEA: above formula . (doesn\'92t work properly in this case. (query is [word1, word2] , doc1:[word1], doc2:[word1, word2, word, word, word, word]\
-IDEA: cosine similarity (basically the same thing)\
-IDEA: just n  ( its tf). (doesn\'92t work properly in this case.  Doc1: word word word match match, Doc2: match match . both will be ranked equally\
-IDEA: just n. top k results with equal rank should be sorted based on length. <\'97 best results\
 \
-not doing stemming here. coz proper nouns\
-not removing stop words. \
 \
 }
