@@ -1,7 +1,7 @@
 {\rtf1\ansi\ansicpg1252\cocoartf1265\cocoasubrtf210
 {\fonttbl\f0\fswiss\fcharset0 Helvetica;}
 {\colortbl;\red255\green255\blue255;}
-\margl1440\margr1440\vieww20540\viewh10520\viewkind0
+\margl1440\margr1440\vieww7640\viewh10520\viewkind0
 \deftab720
 \pard\pardeftab720
 
@@ -68,12 +68,26 @@ removing comma, \'93\'94 () [] \{\}\
 make ? , ! as separate word \'a0(coz there are some names with just ? ) assign less weights for the features with just character\
 		\
 		both with and without space for . \'91 -\'a0\
+for spell check, if you give a word misspelt, but still in dictionary, you wont get expected results\
+\
+if at least one word is correct, get the results.\'a0\
+	now try to match the query with results. matching condition is edit distance less than threshold(relaxed condition)\
+	Rank using the same strategy.\
+	Display that the user spelt wrongly and display first five suggestions\
+	cache the \'a0misspelt words of the first result in a separate dictionary if they pass a higher threshold\
+if no word is correct,\
+	check the cache\
+	same strategy with relaxed condition\
+\
 \
 Test cases:\
 f u\
 Sylvesters Team\
 chara yuki\
-\
+jazz warrier (my fave)\
+thy co eds\
+mommy grvy  (my fave coz both has spelling mistakes and the best part is, the first word is already a correct word)\
+clost panic\
 \
 modify value part of docWeights using the formula below. n is the value here\
 Nd is given by wordCount found initially.\

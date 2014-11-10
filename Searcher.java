@@ -7,11 +7,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.text.Normalizer;
+import java.text.Normalizer.Form;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -23,18 +26,41 @@ public class Searcher {
 	private Map<String, Map<String, Integer>> invertedIndex = new HashMap<String, Map<String, Integer>>();
 	private Map<String, Integer> wordCount = new HashMap<String, Integer>(); //needed?
 	private Map<String, String> docIdName = new HashMap<String, String>();
+	private int maxNumberResults = 20;
+	private int editDistanceThreshold = 2;
+	private Set<String> stopWords = new HashSet<String>(Arrays.asList("and", "of", "if"));
 	
 	private void prompt() {
 		System.out.print("search> ");
 	}
+	private String removeAccents(String text) {
+	    return text == null ? null :
+	        Normalizer.normalize(text, Form.NFD)
+	            .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+	}
+	private boolean isStopWord(String word) { //TODO: incomplete . write code for stop word
+		if(stopWords.contains(word))
+			return true;
+		return false;
+	}
+	
+	private boolean isSmallWord(String word) {
+		if(word.length()<=2){
+			return true;
+		}
+		return false;
+	}
+	
 	private String[] textNormalization(String[] words) {
 		List<String> newWords = new ArrayList<String>();
 		for(String word: words) {
+			//removing accents and diacritics
+			String word1 = removeAccents(word);
 			/*Lower case*/
-			String key = word.toLowerCase();
-
+			String key = word1.toLowerCase();
+			//TODO: handle $
 			//remove [],{} () " 
-			String removedChar = key.replaceAll("[,\"\\[\\{\\]\\}()]+", "");
+			String removedChar = key.replaceAll("[,\"%\\[\\{\\]\\}()]+", "");
 			// replace & with and
 			String removedChar1 = removedChar.replaceAll("&", "and");
 			// making ? and ! as separate words
@@ -75,10 +101,10 @@ public class Searcher {
 		wordArr = newWords.toArray(wordArr);
 		return wordArr;
 	}
-	
-	private void storeFeatureInIndex(String feature, String document) {
-		if(invertedIndex.containsKey(feature)){
-			Map<String,Integer> m =	invertedIndex.get(feature);
+	//TODO: third parameter as Map
+	private void storeFeatureInIndex(String feature, String document, Map<String, Map<String, Integer>> index) {
+		if(index.containsKey(feature)){
+			Map<String,Integer> m =	index.get(feature);
 			if(m.containsKey(document)){
 				m.put(document, m.get(document)+1 );
 			}
@@ -89,7 +115,7 @@ public class Searcher {
 		else {
 			Map<String, Integer> docMap = new HashMap<String, Integer>();
 			docMap.put(document, 1);
-			invertedIndex.put(feature, docMap);
+			index.put(feature, docMap);
 		}	
 	}
 	
@@ -98,10 +124,10 @@ public class Searcher {
 		words = textNormalization(words);		
 		// 1-gram and bigram added here		
 		for(int i=0;i<words.length; i++){
-			storeFeatureInIndex(words[i], document);
+			storeFeatureInIndex(words[i], document, invertedIndex);
 			if(i+1 < words.length){
 				String bigram = words[i] +" "+ words[i+1];
-				storeFeatureInIndex(bigram, document);
+				storeFeatureInIndex(bigram, document, invertedIndex);
 			}		
 		}	
 	}
@@ -120,6 +146,7 @@ public class Searcher {
 		//writeIndexToFile();
 		br.close();
 	}
+
 	
 	@SuppressWarnings("unused")
 	private void writeIndexToFile() {
@@ -145,7 +172,7 @@ public class Searcher {
 				queryMap.put(queryWords[i], 1);
 			}
 			if(i < queryWords.length-1){
-				String bigram = queryWords[i] + queryWords[i+1];
+				String bigram = queryWords[i] + " " +queryWords[i+1];
 				if(queryMap.containsKey(bigram)) {
 					queryMap.put(bigram, queryMap.get(bigram)+1);
 				}
@@ -155,12 +182,24 @@ public class Searcher {
 			}
 		}
 	}
-	
-	private void findWeights(Map<String, Integer> queryMap, Map<String, Integer> docWeights) {
+
+	/*Calculates the weights for each document and populates docWeights. Returns the number of words in the query not matched*/
+	private Integer findWeights(Map<String, Integer> queryMap, Map<String, Integer> docWeights, Map<String, Map<String, Integer>> index) {
+		Integer notMatched = 0;
 		for(String word: queryMap.keySet()) {
-			if(!invertedIndex.containsKey(word))  //TODO: spell check for this missing word
+			if(word.isEmpty()) {
 				continue;
-			Map<String, Integer> docMap = new HashMap<String, Integer>(invertedIndex.get(word));		
+			}
+			if(!index.containsKey(word)){
+				//make sure the word is not a bigram
+				if(word.split("\\s+").length<2){
+					notMatched = notMatched + queryMap.get(word);
+				}
+				continue;
+			}  //TODO: spell check for this missing word
+				
+			Map<String, Integer> docMap = new HashMap<String, Integer>(index.get(word));	
+			
 			int count = queryMap.get(word); 
 			for(int j = 0; j < count; j++) {
 				for(String doc: docMap.keySet()) {
@@ -176,39 +215,214 @@ public class Searcher {
 				}
 			}
 		}
+		return notMatched;
 	}
 	
+//modify TODO:
+	private int editDistance(String word1, String word2) {
+		int len1 = word1.length();
+		int len2 = word2.length();
+	 
+		// len1+1, len2+1, because finally return dp[len1][len2]
+		int[][] dp = new int[len1 + 1][len2 + 1];
+	 
+		for (int i = 0; i <= len1; i++) {
+			dp[i][0] = i;
+		}
+	 
+		for (int j = 0; j <= len2; j++) {
+			dp[0][j] = j;
+		}
+	 
+		//iterate though, and check last char
+		for (int i = 0; i < len1; i++) {
+			char c1 = word1.charAt(i);
+			for (int j = 0; j < len2; j++) {
+				char c2 = word2.charAt(j);
+	 
+				//if last two chars equal
+				if (c1 == c2) {
+					//update dp value for +1 length
+					dp[i + 1][j + 1] = dp[i][j];
+				} else {
+					int replace = dp[i][j] + 1;
+					int insert = dp[i][j + 1] + 1;
+					int delete = dp[i + 1][j] + 1;
+	 
+					int min = replace > insert ? insert : replace;
+					min = delete > min ? min : delete;
+					dp[i + 1][j + 1] = min;
+				}
+			}
+		}
+	 
+		return dp[len1][len2];
+	}
+	
+	private Map<String, Integer> findClosestWords(String word, Map<String, Map<String, Integer>> index) {
+		Map<String, Integer> results = new HashMap<String, Integer>(); // word and its edit distance
+		int localThreshold = editDistanceThreshold;
+		//if results are empty try increasing the threshold and try again.
+		
+		//if its a stop word, dont search in the index
+		if(isStopWord(word) || isSmallWord(word)){
+			results.put(word, 0);
+		}
+			
+		while(results.isEmpty()){
+			for(String key: index.keySet()) {
+				int distance = editDistance(key, word);
 
+				if(distance <= localThreshold){
+					if(isStopWord(key) && key.length() <= word.length()){  // if its close to a stop word, use that
+						results.clear();
+						results.put(key, distance);
+						break;
+					}
+					results.put(key, distance);
+				}
+			}
+			localThreshold++;
+		}
+		
+		return results;
+	}
+	
 	public Searcher(String filePath) throws FileNotFoundException, IOException {
 		this.filePath = filePath;	
+
 		buildIndex();		
 	}
-
-	public String search(String query) throws IOException {
-		String[] queryWords = query.split("\\s+");
-		if(query.isEmpty() || queryWords.length==0)
-			return "Empty query";
-
-		queryWords = textNormalization(queryWords);
-		Map<String, Integer> queryMap = new HashMap<String, Integer>();
-		Map<String, Integer> docWeights = new HashMap<String, Integer>();
-		
-		//Adding words and bigrams
-		addFeaturesToQueryIndex(queryWords, queryMap);
-		
-		//Finding weights for documents
-		findWeights(queryMap, docWeights);
-			
-		if(docWeights.isEmpty())
-			return "No results found";
 	
-		List<Entry<String, Integer>> sorted = sortWeight(docWeights);
-		List<List<Entry<String, Integer>>> topRanked = new ArrayList<List<Entry<String, Integer>>>();
+	/* finds the best closest query to the incorrect input query and returns its corresponding docWeights*/
+	private Map<String, Integer> relaxedSearch(String[] queryWords, Map<String, Map<String, Integer>> index, Boolean notPerfect) {
+		// To find the right combination of query words which has the highest no. of matches.
+		
+		//first get all possible combinations
+		Map<List<String>, Integer> possibleQueries = getAllPossibleQueries(queryWords, index);
+		
+		//find the query whose first result has the maximum matches.
+		//make queryMap for these queries
+		return findBestQuery(possibleQueries, index, notPerfect);
+	}
+	
+	/* finding the queries which have the maximum matches and return the docWeight */
+	private Map<String, Integer> findBestQuery(Map<List<String>, Integer> possibleQueries, Map<String, Map<String, Integer>> partialIndex, Boolean isPerfect) {
+		
+		
+		int maxWeight = 0;
+		List<List<String>> bestQueries = new ArrayList<List<String>>();
+		Map<String, Integer> bestWeights = new HashMap<String, Integer>();
+		for(List<String> query: possibleQueries.keySet()) {
+			Map<String, Integer> docWeights = new HashMap<String, Integer>();
+			Map<String, Integer> queryMap = new HashMap<String, Integer>();
+			
+			String[] queryWords = new String[query.size()];
+			queryWords = query.toArray(queryWords);
+			
+			addPartialFeaturesToQueryIndex(queryWords, queryMap);
+			
+			findWeights(queryMap, docWeights, partialIndex);
+			int weight = findMaxWeight(docWeights);
+			if(weight == maxWeight) {
+				bestQueries.add(query);
+				mergeMap(bestWeights, docWeights); 
+			}
+			else if(weight > maxWeight) {
+				bestQueries.clear();
+				bestWeights.clear();
+				bestQueries.add(query);
+				mergeMap(bestWeights, docWeights);  //dont merge here
+				maxWeight = weight;
+			}
+		}
+		// sort these best queries based on edit distance in the search function TODO:
+		// take top 5 (?)
+		
+		if(!isPerfect){
+			System.out.println("The query has mistakes. Showing results for the following queries");
+			
+			for(List<String> query: bestQueries) {
+				StringBuilder sb = new StringBuilder();
+				
+				for(int i=0, il = query.size(); i < il; i++){
+					if(i>0)
+						sb.append(" ");
+					sb.append(query.get(i));
+				}
+				System.out.println("\t"+sb.toString());
+			}
+		}
+		
+		return bestWeights;
+		
+	}
+	private void mergeMap(Map<String, Integer> bestWeights, Map<String, Integer> docWeights) {
+		for(String doc: docWeights.keySet()) {
+			if(!bestWeights.containsKey(doc) ||docWeights.get(doc) > bestWeights.get(doc) ) {
+				bestWeights.put(doc, docWeights.get(doc));
+			}
+		}
+	} 
+	private Integer findMaxWeight(Map<String, Integer> docWeights) {
+		int max = 0;
+		for(String key: docWeights.keySet()) {
+			int matches = docWeights.get(key); 
+			if(matches > max) {
+				max = matches;
+			}
+		}
+		return max;
+	}
+	private Map<List<String>, Integer> possibleCombinations(List<Map<String, Integer>> possibleWords, int listIndex, List<String> buffer, Integer editDistance, Map<List<String>,Integer> result) {
+		if(listIndex==possibleWords.size()){
+			List<String> copy = new ArrayList<String>(buffer);
+			result.put(copy, editDistance);
+			return result;
+		}
+		
+		for(String word: possibleWords.get(listIndex).keySet()) {
+			buffer.add(word); //add the word
+			editDistance = editDistance + possibleWords.get(listIndex).get(word); // add its edit distance
+			possibleCombinations(possibleWords, listIndex+1, buffer, editDistance, result);
+			buffer.remove(buffer.size()-1);
+			editDistance = editDistance - possibleWords.get(listIndex).get(word);
+		}
+		return result;
+	}
+	
+	//finds all possible queries and their edit distance
+	private Map<List<String>, Integer> getAllPossibleQueries(String[] queryWords, Map<String, Map<String, Integer>> partialIndex) {
+		List<Map<String, Integer>> possibleWords = new ArrayList<Map<String, Integer>>(); // not the result!
+		
+		for(String word: queryWords) {
+			//get closest matches 
+			Map<String, Integer> closestMatches = findClosestWords(word, partialIndex);
+			possibleWords.add(closestMatches);
+		}
+		List<String> buffer = new ArrayList<String>();
+		Map<List<String>, Integer> result = new HashMap<List<String>, Integer>();
+		
+		return possibleCombinations(possibleWords, 0, buffer, 0, result);
+		
+	}
+	private void addPartialFeaturesToQueryIndex(String[] queryWords, Map<String, Integer> queryMap ) {
+		for(int i=0; i< queryWords.length; i++) {
+			if(queryMap.containsKey(queryWords[i])) {
+				queryMap.put(queryWords[i], queryMap.get(queryWords[i])+1);
+			}
+			else {
+				queryMap.put(queryWords[i], 1);
+			}
+		}
+	}
+	
+	private void rankingDocs(List<List<Entry<String, Integer>>> topRanked, Map<String, Integer> docWeights) {
+		List<Entry<String, Integer>> sorted = sortWeight(docWeights);	
 		Integer first = null;
 		
 		int i=0;
 		// SECOND LEVEL OF RANKING
-		System.out.println("SECOND LEVEL OF SORTING");
 		Map<String, Integer> map = new HashMap<String, Integer>();
 		for(Map.Entry<String, Integer> entry: Reversed.reversed(sorted)){
 			if(i==0){
@@ -226,31 +440,88 @@ public class Searcher {
 				map.put(entry.getKey(), wordCount.get(entry.getKey()) + docIdName.get(entry.getKey()).length());
 			}
 		}	
-		topRanked.add(sortWeight(map)); 
+		topRanked.add(sortWeight(map));
+	}
+	
+	public String search(String query) throws IOException {
+		String[] queryWords = query.split("\\s+");
+		if(query.isEmpty() || queryWords.length==0)
+			return "Empty query";
+
+		queryWords = textNormalization(queryWords);
+		Map<String, Integer> queryMap = new HashMap<String, Integer>();
+		Map<String, Integer> docWeights = new HashMap<String, Integer>();
+		Map<String, Integer> relaxedDocWeights = new HashMap<String, Integer>();
 		
-        System.out.println("(Q or q) to quit\n");
-        
-        int maxCount = 20; // can change
+		//Adding words and bigrams
+		addFeaturesToQueryIndex(queryWords, queryMap);
+		
+		//Finding weights for documents
+		Boolean isPerfect = true;
+		Integer notMatches = findWeights(queryMap, docWeights, invertedIndex);
+		if( notMatches!=0 ){
+			isPerfect = false;
+		}
+		relaxedDocWeights = relaxedSearch(queryWords, invertedIndex, isPerfect);
+		mergeMap(docWeights, relaxedDocWeights); 
+		
+//		if(notMatches == queryWords.length) { // no words match
+//			//brute force
+//			docWeights = relaxedSearch(queryWords, invertedIndex);
+//		}
+//		if(notMatches != 0) {
+			//get the keys of docWeights.
+			//build index for these documents TODO: please dont use these results. remove stop words and try again (exception if the matched word is a stop word)
+			//call searchRelaxed and perform the same algorithm with a relaxed condition using edit distance.
+			
+//			Set<String> partialResults = docWeights.keySet();
+//			Map<String, Map<String, Integer>> partialIndex = new HashMap<String, Map<String, Integer>>();
+//			buildPartialIndex(partialIndex, partialResults);
+//			docWeights = relaxedSearch(queryWords, partialIndex);
+//			
+//			docWeights = relaxedSearch(queryWords, invertedIndex);
+//		}
+		
+		if(docWeights.isEmpty())
+			return "No results found";
+		List<List<Entry<String, Integer>>> topRanked = new ArrayList<List<Entry<String, Integer>>>();
+		rankingDocs(topRanked, docWeights);
+		
+       
         int count = 0;
         BufferedReader console = new BufferedReader( new InputStreamReader(System.in));
 		String input;
 		for(List<Entry<String, Integer>> list: topRanked) {
 			for(Map.Entry<String, Integer> entry:list){
-				System.out.println("Did you mean "+ docIdName.get(entry.getKey()) + "  "+ entry.getKey() +" ? (Y or y)");
-				input = console.readLine();
-
-				if(input.equals("y") || input.equals("Y")) {
-					return "ID: "+entry.getKey();
-				} 
-				else if(input.equals("q") || input.equals("Q")) {
-					return "";
-				}
-				else {
+				if(count == 0 && isPerfect) {
+					System.out.println("Best match : "+ docIdName.get(entry.getKey()) + "  "+ entry.getKey());
+					System.out.println("Closest matches : ");
 					count++;
-					if(count>= maxCount)
-						return "No more results";
 					continue;
 				}
+				else if(count==0){
+					System.out.println("Closest matches : ");
+					System.out.println(docIdName.get(entry.getKey()) + "  "+ entry.getKey());
+					count++;
+					continue;
+				}
+					
+				
+				System.out.println(docIdName.get(entry.getKey()) + "  "+ entry.getKey());
+				count++;
+				
+				if(count == maxNumberResults+1){
+					System.out.println("Show more results? (Y/y)");
+					count = 1;
+					input = console.readLine();
+					if(input.equals("y") || input.equals("Y")) {
+						continue;
+					} 
+					else {
+						return "";
+					}
+				}
+				
 			}
 		}
  	
@@ -269,14 +540,14 @@ public class Searcher {
         } );
 
         //TODO: remove prints
-        int i =0;
-        for(Map.Entry<String, Integer> entry:list){
-        	i = i+1;
-        	if(i>30){
-        		break;
-        	}
-            System.out.println(docIdName.get(entry.getKey())+" ==== "+entry.getValue());
-        }
+//        int i =0;
+//        for(Map.Entry<String, Integer> entry:list){
+//        	i = i+1;
+//        	if(i>30){
+//        		break;
+//        	}
+//            System.out.println(docIdName.get(entry.getKey())+" ==== "+entry.getValue());
+//        }
         return list;
 	}
 	
@@ -295,7 +566,6 @@ public class Searcher {
 		}
 
 		searcher.prompt();
-		//Scanner scanner = new Scanner(System.in);
 		BufferedReader buf = new BufferedReader (new InputStreamReader (System.in));
 		String input = buf.readLine ();
 
