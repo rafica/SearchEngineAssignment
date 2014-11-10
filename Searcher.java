@@ -51,7 +51,7 @@ public class Searcher {
 		return false;
 	}
 	
-	private String[] textNormalization(String[] words) {
+	private String[] textNormalization(String[] words, Boolean flag) {
 		List<String> newWords = new ArrayList<String>();
 		for(String word: words) {
 			//removing accents and diacritics
@@ -79,8 +79,10 @@ public class Searcher {
 				if(feature.contains(".")){
 					String first = feature.replaceAll("\\.", "");
 					finalFeatures.add(first);
-					String second = feature.replaceAll("\\.", " ");
-					Collections.addAll(finalFeatures, second.split("\\s+"));
+					if(flag){
+						String second = feature.replaceAll("\\.", " ");
+						Collections.addAll(finalFeatures, second.split("\\s+"));
+					}
 				}
 				else if(feature.contains("'")){
 					String first = feature.replaceAll("'", "");
@@ -121,7 +123,7 @@ public class Searcher {
 	
 	private void storeInIndex(String[] words, String document) {
 		wordCount.put(document, words.length);
-		words = textNormalization(words);		
+		words = textNormalization(words, true);		
 		// 1-gram and bigram added here		
 		for(int i=0;i<words.length; i++){
 			storeFeatureInIndex(words[i], document, invertedIndex);
@@ -336,9 +338,8 @@ public class Searcher {
 				maxWeight = weight;
 			}
 		}
-		// sort these best queries based on edit distance in the search function TODO:
-		// take top 5 (?)
 		
+		int count = 10;
 		if(!isPerfect){
 			System.out.println("The query has mistakes. Showing results for the following queries");
 			
@@ -351,6 +352,9 @@ public class Searcher {
 					sb.append(query.get(i));
 				}
 				System.out.println("\t"+sb.toString());
+				count--;
+				if(count==0)
+					break;
 			}
 		}
 		
@@ -448,7 +452,7 @@ public class Searcher {
 		if(query.isEmpty() || queryWords.length==0)
 			return "Empty query";
 
-		queryWords = textNormalization(queryWords);
+		queryWords = textNormalization(queryWords, false);  //false represents normalization is done on the query
 		Map<String, Integer> queryMap = new HashMap<String, Integer>();
 		Map<String, Integer> docWeights = new HashMap<String, Integer>();
 		Map<String, Integer> relaxedDocWeights = new HashMap<String, Integer>();
@@ -465,22 +469,6 @@ public class Searcher {
 		relaxedDocWeights = relaxedSearch(queryWords, invertedIndex, isPerfect);
 		mergeMap(docWeights, relaxedDocWeights); 
 		
-//		if(notMatches == queryWords.length) { // no words match
-//			//brute force
-//			docWeights = relaxedSearch(queryWords, invertedIndex);
-//		}
-//		if(notMatches != 0) {
-			//get the keys of docWeights.
-			//build index for these documents TODO: please dont use these results. remove stop words and try again (exception if the matched word is a stop word)
-			//call searchRelaxed and perform the same algorithm with a relaxed condition using edit distance.
-			
-//			Set<String> partialResults = docWeights.keySet();
-//			Map<String, Map<String, Integer>> partialIndex = new HashMap<String, Map<String, Integer>>();
-//			buildPartialIndex(partialIndex, partialResults);
-//			docWeights = relaxedSearch(queryWords, partialIndex);
-//			
-//			docWeights = relaxedSearch(queryWords, invertedIndex);
-//		}
 		
 		if(docWeights.isEmpty())
 			return "No results found";
