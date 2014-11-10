@@ -27,7 +27,7 @@ public class Searcher {
 	private Map<String, Integer> wordCount = new HashMap<String, Integer>(); //needed?
 	private Map<String, String> docIdName = new HashMap<String, String>();
 	private int maxNumberResults = 20;
-	private int editDistanceThreshold = 2;
+	private int editDistanceThreshold = 1;
 	private Set<String> stopWords = new HashSet<String>(Arrays.asList("and", "of", "if"));
 	
 	private void prompt() {
