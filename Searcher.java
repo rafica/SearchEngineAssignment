@@ -668,8 +668,10 @@ public class Searcher {
 			if(isFileOutput)
 				break;
 		}
-		System.out.println("-------------------------------------------------");
-		System.out.println("No more results");
+		if(!isFileOutput){
+			System.out.println("-------------------------------------------------");
+			System.out.println("No more results");
+		}
 		return result; 
 	}
 
