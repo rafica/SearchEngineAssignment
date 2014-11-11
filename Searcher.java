@@ -6,7 +6,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
 import java.io.Writer;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
@@ -33,9 +32,8 @@ public class Searcher {
 	private Map<String, Integer> wordCount = new HashMap<String, Integer>(); 
 	private Map<String, String> docIdName = new HashMap<String, String>();
 	private int maxNumberResults = 20;
-	private int editDistanceThreshold = 2;
+	private int editDistanceThreshold = 1;
 	private Set<String> stopWords = new HashSet<String>(Arrays.asList("and", "of", "if", "a", "are"));
-	public boolean isFileOutput = false;    //if isFileOutput is set to True, the best match output IDs are written to a file
 	
 	private void prompt() {
 		System.out.print("search> ");
@@ -592,7 +590,7 @@ public class Searcher {
 		queryWords = textNormalization(queryWords, false);  //false represents normalization is done on the query
 		Map<String, Integer> queryMap = new HashMap<String, Integer>();
 		Map<String, Integer> docWeights = new HashMap<String, Integer>();
-		Map<String, Integer> relaxedDocWeights = new HashMap<String, Integer>();
+	//	Map<String, Integer> relaxedDocWeights = new HashMap<String, Integer>();
 		
 		//Adding words and bigrams
 		addFeaturesToQueryIndex(queryWords, queryMap);
@@ -604,8 +602,8 @@ public class Searcher {
 			isPerfect = false;
 		}
 		if(!isPerfect){
-			relaxedDocWeights = relaxedSearch(queryWords, invertedIndex, isPerfect);
-			mergeMap(docWeights, relaxedDocWeights);
+			docWeights = relaxedSearch(queryWords, invertedIndex, isPerfect);
+			//mergeMap(docWeights, relaxedDocWeights);
 		}
 	
 		if(docWeights.isEmpty()){
@@ -617,62 +615,58 @@ public class Searcher {
         String result = "";
         int count = 0;
         BufferedReader console = new BufferedReader( new InputStreamReader(System.in));
-		String input;
-		for(List<Entry<String, Integer>> list: topRanked) {
-			for(Map.Entry<String, Integer> entry:list){
-				if(count == 0 && isPerfect) {
-					if(!isFileOutput){
-						System.out.println("++++++++++++++++++++++++++++++++++++++++++++++++++++");
-						System.out.println();
-						System.out.println("BEST MATCH : "+ docIdName.get(entry.getKey()) + " ==== "+ entry.getKey());
-						System.out.println("**********");
-						System.out.println("-------------------------------------------------");
-						System.out.println("CLOSEST MATCHES : ");
-						System.out.println("***************");
-					}
-					result = entry.getKey();
-					count++;
-					continue;
-				}
-				else if(count==0){
-					if(!isFileOutput) {
-						System.out.println("-------------------------------------------------");
-						System.out.println("CLOSEST MATCHES : ");
-						System.out.println("***************");
-						System.out.println(docIdName.get(entry.getKey()) + " ==== "+ entry.getKey());
-					}
-					count++;
-					result = entry.getKey();
-					continue;
-				}
-				if(!isFileOutput)				
-					System.out.println(docIdName.get(entry.getKey()) + " ==== "+ entry.getKey());
-				count++;
-				
-				if(count == maxNumberResults+1){
-					if(isFileOutput)
-						break;
-					System.out.println("-------------------------------------------------");
-					System.out.println("Show more results? (Y/y)");
-					count = 1;
-					input = console.readLine();
-					if(input.equals("y") || input.equals("Y")) {
-						continue;
-					} 
-					else {																	  
-						System.out.println("++++++++++++++++++++++++++++++++++++++++++++++++++++");
-						return "";
-					}
-				}			
-			}
-			if(isFileOutput)
-				break;
-		}
-		if(!isFileOutput){
-			System.out.println("-------------------------------------------------");
-			System.out.println("No more results");
-		}
-		return result; 
+        String input;
+        for(List<Entry<String, Integer>> list: topRanked) {
+        	for(Map.Entry<String, Integer> entry:list){
+        		if(count == 0 && isPerfect) {
+
+        			System.out.println("++++++++++++++++++++++++++++++++++++++++++++++++++++");
+        			System.out.println();
+        			System.out.println("BEST MATCH : "+ docIdName.get(entry.getKey()) + " ==== "+ entry.getKey());
+        			System.out.println("**********");
+        			System.out.println("-------------------------------------------------");
+        			System.out.println("CLOSEST MATCHES : ");
+        			System.out.println("***************");
+
+        			result = entry.getKey();
+        			count++;
+        			continue;
+        		}
+        		else if(count==0){
+
+        			System.out.println("-------------------------------------------------");
+        			System.out.println("CLOSEST MATCHES : ");
+        			System.out.println("***************");
+        			System.out.println(docIdName.get(entry.getKey()) + " ==== "+ entry.getKey());
+
+        			count++;
+        			result = entry.getKey();
+        			continue;
+        		}			
+        		System.out.println(docIdName.get(entry.getKey()) + " ==== "+ entry.getKey());
+        		count++;
+
+        		if(count == maxNumberResults+1){
+        			System.out.println("-------------------------------------------------");
+        			System.out.println("Show more results? (Y/y)");
+        			count = 1;
+        			input = console.readLine();
+        			if(input.equals("y") || input.equals("Y")) {
+        				continue;
+        			} 
+        			else {																	  
+        				System.out.println("++++++++++++++++++++++++++++++++++++++++++++++++++++");
+        				return "";
+        			}
+        		}			
+        	}
+
+        }
+
+        System.out.println("-------------------------------------------------");
+        System.out.println("No more results");
+
+        return result; 
 	}
 
 	/**
@@ -693,43 +687,31 @@ public class Searcher {
         return list;
 	}
 	
-	public static void main(String[] args){
+	public static void main(String[] args) throws IOException{
 		Searcher searcher = null;
+		BufferedReader buf = null;
 		try {
 			searcher = new Searcher(args[0]);
 			searcher.prompt();
-			BufferedReader buf = new BufferedReader (new InputStreamReader (System.in));
+			buf = new BufferedReader (new InputStreamReader (System.in));
 			String input = buf.readLine ();
-
-			//isFileOutput determines if the output should be in a file
-			searcher.isFileOutput = true;	
-
-			//		File fout = new File("out.txt");
-			//		FileOutputStream fos = new FileOutputStream(fout);
-			//		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(fos));
-
-			PrintWriter writer = new PrintWriter("output.txt", "UTF-8");
 			
 			while(input!=null) {
-				String results = searcher.search(input);
-				if(searcher.isFileOutput){		
-					//				bw.write(results);  // TODO: file is not writing.???
-					//				bw.newLine();
-					writer.println(results);
-				}			
-				System.out.println(results);
+				searcher.search(input);  // returns the best query found of string type 		
+				//System.out.println(results);
 				searcher.prompt();
 				input = buf.readLine();
 			}
 			buf.close();
-			writer.close();
-			
 		} catch (FileNotFoundException e) {
-			System.out.println("file not found");
+			System.out.println("File not found");
 			e.printStackTrace();
 		}
 		catch(IOException e) {
 			e.printStackTrace();
+		}
+		finally{
+			buf.close();
 		}
 
 	}
